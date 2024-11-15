@@ -9,7 +9,7 @@ from langchain_core.pydantic_v1 import BaseModel, Field
 load_dotenv()
 
 
-def generate_edits(text, tone):
+def optimize_prompt(prompt):
     llm = ChatOpenAI(
         model="gpt-4o-mini",
         temperature=0.2,
@@ -61,7 +61,6 @@ class EditRecommendationModel(BaseModel):
 
 def get_open_tag(id):
     return f"<span style='color: rgb(127 29 29);	background-color: rgb(252 165 165); text-decoration-line: line-through;' id='{id}o'>"
-
 
 def get_new_open_tag(id):
     return f"<span style='color: rgb(20 83 45); 	background-color: rgb(134 239 172);' id='{id}n'>"
