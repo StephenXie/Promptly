@@ -1,6 +1,6 @@
 {
-    "name": "Hello Extensions",
-    "description": "Base Level Extension",
+    "name": "Promptly",
+    "description": "Supercharging your AI productivity with industry level prompting",
     "version": "1.0",
     "manifest_version": 3,
     "permissions": [
@@ -8,7 +8,8 @@
     ],
     "host_permissions": [
       "http://*/*",
-      "https://*/*"
+      "https://*/*",
+      "https://deep-stable-gorilla.ngrok-free.app/*"
     ],
     "content_scripts": [
       {
