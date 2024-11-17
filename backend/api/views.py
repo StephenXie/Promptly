@@ -1,7 +1,7 @@
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.permissions import AllowAny
-from .api import optimize_prompt
+from .api import optimize_prompt as optimize_prompt_api
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def home(request):
@@ -11,5 +11,5 @@ def home(request):
 @permission_classes([AllowAny])
 def optimize_prompt(request):
     prompt = request.data.get("prompt")
-    optimized_prompt = optimize_prompt(prompt)
+    optimized_prompt = optimize_prompt_api(prompt)
     return Response({"optimized_prompt": optimized_prompt})

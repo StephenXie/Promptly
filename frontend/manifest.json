@@ -7,17 +7,14 @@
       "activeTab"
     ],
     "host_permissions": [
-      "http://*/*",
-      "https://*/*",
-      "https://deep-stable-gorilla.ngrok-free.app/*"
+      "https://chatgpt.com/*"
     ],
     "content_scripts": [
       {
         "matches": [
-          "http://*/*",
-          "https://*/*"
+          "https://chatgpt.com/*"
         ],
-        "js": ["content.js"]
+        "js": ["textboxedits.js", "getElementByXpath.js", "ui.js", "content.js"]
       }
     ]
 }

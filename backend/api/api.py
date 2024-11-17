@@ -5,41 +5,131 @@ from uuid import uuid4
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.pydantic_v1 import BaseModel, Field
+from difflib import SequenceMatcher
+from langchain_core.messages import HumanMessage, SystemMessage
+from bs4 import BeautifulSoup
+from markdown import markdown
+from markdown import Markdown
+from io import StringIO
 
+
+def unmark_element(element, stream=None):
+    if stream is None:
+        stream = StringIO()
+    if element.text:
+        stream.write(element.text)
+    for sub in element:
+        unmark_element(sub, stream)
+    if element.tail:
+        stream.write(element.tail)
+    return stream.getvalue()
+
+
+# patching Markdown
+Markdown.output_formats["plain"] = unmark_element
+__md = Markdown(output_format="plain")
+__md.stripTopLevelTags = False
+
+
+def unmark(text):
+    return __md.convert(text)
 load_dotenv()
 
+def highlight_changes(original_text, edited_text):
+    matcher = SequenceMatcher(None, original_text, edited_text)
+    output = []
+    add_symbol = "@@"
+    delete_symbol = "~~"
+    for opcode, a0, a1, b0, b1 in matcher.get_opcodes():
+        if opcode == 'equal':
+            output.append(original_text[a0:a1])
+        elif opcode == 'replace':
+            output.append(f"[{delete_symbol}{original_text[a0:a1]}{delete_symbol} {add_symbol}{edited_text[b0:b1]}{add_symbol}]")
+        elif opcode == 'delete':
+            output.append(f"[{delete_symbol}{original_text[a0:a1]}{delete_symbol}]")
+        elif opcode == 'insert':
+            output.append(f"[{add_symbol}{edited_text[b0:b1]}{add_symbol}]")
+    result = ''.join(output)
+    return result
 
-def optimize_prompt(prompt):
+def optimize_prompt_education(text):
+    token = len(text)/4
     llm = ChatOpenAI(
         model="gpt-4o-mini",
-        temperature=0.2,
+        temperature=0.3,
         timeout=None,
         max_retries=2,
     )
-    prompt = "You are an professional prompt engineer. You are reviewing a prompt and you need to make several edits to improve the prompt, but do not add anything to the prompt. Surround the original text with '$[' and ']$' and the new text with '#[' and ']#'.\n"
+    system_prompt = "You are an LLM prompt engineer for enhancing academic questions. You will use prompting techniques like Role-Based Prompting and Chain-of-thought reasoning to improve the user's prompt. Don't suggest an answer to the user prompt. Don't alter code in the prompt. Don't alter equations in the prompt. Don't alter quotes in the prompt. Make sure to only improve the prompt. Keep your response concise and to the point."
+    prompt = ""
     examples = [
         {
-            "Q": "Good morning! Me and him went to the store.",
-            "A": "Good morning! $[Me and him]$#[He and I]# went to the store.",
+            "User prompt:": "What is the quadratic formula x = (-b±sqrt(b^2 - 4ac))/2a used for?",
+            "Improved prompt:": "What is the purpose of the quadratic formula x = (-b±sqrt(b^2 - 4ac))/2a in mathematics? As a mathematics tutor, explain each component of the Quadratic Formula step by step and how they work together. Provide examples to demonstrate it's purpose.",
         },
         {
-            "Q": "I could care less. It's okay.",
-            "A": "I $[could]$#[couldn't]# care less. It's okay.",
+            "User prompt:": "Summarize 1984 by George Orwell and quiz me for an upcoming exam",
+            "Improved prompt:": "Identify the main themes and intricate details of the novel '1984' by George Orwell. Focus on details that I, a student, needs to master the book before an exam. Then, write a summary that captures the essence of '1984'. Then, give me a practice exam with easy, medium, and hard difficulty questions. Make me ready for my upcoming exam.",
         },
         {
-            "Q": "I'm going to lay down for a bit.",
-            "A": "I'm going to $[lay]$#[lie]# down for a bit",
+            "User prompt:": "If (AB)^-1 exists. why does that not imply B^-1 and A^-1 both exist?",
+            "Improved prompt:": "Given that A and B are matrices and the inverse of their product (AB)^-1 exists, why does that not imply B^-1 and A^-1 both exist? Provide examples or counter examples to demonstrate this fact",
         },
     ]
-    prompt += f" Here are some examples of edits you can make: {examples} \n"
-    num_edits = len(text) // 30
-    prompt += tone_settings[tone]
-    prompt += (
-        f"Make {num_edits-1} to {num_edits+3} edits to the following text: \n {text}"
+    for example in examples:
+        prompt += f"User prompt: {example['User prompt:']}\nImproved prompt: {example['Improved prompt:']}\n\n"
+    prompt += f"User prompt: {text}\nImproved prompt:"
+    messages = [
+    SystemMessage(content=system_prompt),
+    HumanMessage(content=prompt),
+    ]
+    response = llm.invoke(messages)
+    original_text = text
+    raw_text = response.content
+    html = markdown(raw_text)
+    edited_text = ''.join(BeautifulSoup(html).findAll(text=True))
+    res = highlight_changes(original_text, edited_text)
+    print(raw)
+    return res
+
+def optimize_prompt(text):
+    token = len(text)/4
+    llm = ChatOpenAI(
+        model="gpt-4o-mini",
+        temperature=0.3,
+        timeout=None,
+        max_retries=2,
     )
-    # structured_llm = llm.with_structured_output(EditRecommendationModel)
-    response = llm.invoke(prompt)
-    return response
+    system_prompt = "You are an LLM prompt engineer. You will use prompting techniques like few-shot examples and chain-of-thought reasoning to improve the user prompt. Don't suggest an answer to the user prompt. Don't alter code or technical details included in the prompt. Make sure to only improve the prompt. Keep your response concise and to the point."
+    prompt = ""
+    examples = [
+        {
+            "User prompt:": "Translate \"Good evening\" into French.",
+            "Improved prompt:": "Translate the following English phrases into French:\n\n1. \"Good morning\" -> \"Bonjour\"\n2. \"Thank you\" -> \"Merci\"\n3. \"Good evening\" -> ",
+        },
+        {
+            "User prompt:": "Summarize the following article: [Article Text]",
+            "Improved prompt:": "Read the article carefully. Identify the main points and key details. Then, write a concise summary that captures the essence of the article. [Article Text]",
+        },
+        {
+            "User prompt:": "if (AB)^-1 exists. why does that not imply B^-1 and A^-1 both exist?",
+            "Improved prompt:": "Given that A and B are matrices and the inverse of their product (AB)^-1 exists, why does that not imply B^-1 and A^-1 both exist? Provide examples or counter examples to demonstrate this fact",
+        },
+    ]
+    for example in examples:
+        prompt += f"User prompt: {example['User prompt:']}\nImproved prompt: {example['Improved prompt:']}\n\n"
+    prompt += f"User prompt: {text}\nImproved prompt:"
+    messages = [
+    SystemMessage(content=system_prompt),
+    HumanMessage(content=prompt),
+    ]
+    response = llm.invoke(messages)
+    original_text = text
+    raw_text = response.content
+    raw_text = raw_text.replace("\n", "\\n")
+    edited_text = unmark(raw_text)
+    res = highlight_changes(original_text, edited_text)
+    return res
 
 
 tone_settings = {
